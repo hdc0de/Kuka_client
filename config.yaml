@@ -1,0 +1,80 @@
+# =============================================================================
+# Policy server (runs on GPU machine)
+# =============================================================================
+server:
+  address: "tcp://0.0.0.0:5555"    # server bind address (all interfaces)
+  connect_address: "tcp://localhost:5555"  # client.py local connect address
+  policy: "dp"                    # act | pi05 | dp | random | go_home
+  # checkpoint: "/home/rl/projects/X-Sim/openpi/checkpoints/pi05_greycup_lite_rand/pi05_greycup_lite_rand/30000"
+  # checkpoint: "/home/rl/projects/X-Sim/openpi/checkpoints/pi05_greycup_lite/greycup_lora_lite/20000"
+  device: "cuda"
+  # --- Pi05 specific ---
+  # config_name: "pi05_greycup_lite_rand"
+  # config_name: "pi05_greycup_lite"
+  # n_action_steps: 50
+  # task_description: "Pick up grey_cup and place on blue_cup"
+  # --- ACT specific ---
+  # camera_to_feature_map:
+  #   base_camera: "image1"
+  #   wrist_camera: "image2"
+  # --- DP specific ---
+  checkpoint: "/home/rl/projects/X-Sim/diffusion_policy_xsim/experiment_logs/greycup_on_bluecup_dp_5090_20260310_19-18-52/model0.pt"
+  n_action_steps: 8
+  camera_to_feature_map:
+    base_camera: "image1"
+    wrist_camera: "image2"
+  gripper_binarize_threshold: null
+  max_joint_delta: 0.15
+  joint_limits:
+    lower: [-2.9671, -2.0944, -2.9671, -2.0944, -2.9671, -2.0944, -3.0543]
+    upper: [ 2.9671,  2.0944,  2.9671,  2.0944,  2.9671,  2.0944,  3.0543]
+  xsim_root: "/home/rl/projects/X-Sim/diffusion_policy_xsim"
+
+# =============================================================================
+# Cameras (used by both client.py and ros_bridge.py)
+# =============================================================================
+cameras:
+  - name: "base_camera"
+    serial: "308222301757"   # D455
+    width: 640
+    height: 480
+    fps: 30
+    mode: "rgb"
+  - name: "wrist_camera"
+    serial: "306322300452"   # D456
+    width: 640
+    height: 480
+    fps: 30
+    mode: "rgb"
+
+# =============================================================================
+# Robot
+# =============================================================================
+robot:
+  type: "kuka_iiwa"
+  home_position: [0, 0, 0, -1.57, 0, 1.57, 0]
+  bridge_host: "192.168.1.100"  # ROS machine IP (used by client.py TCP mode)
+  bridge_port: 6000
+
+# =============================================================================
+# Control loop parameters
+# =============================================================================
+control:
+  hz: 15
+  max_steps: 800
+  num_episodes: 10
+
+# =============================================================================
+# ROS Bridge settings (used by ros_bridge.py on the ROS machine)
+#   ros_bridge.py reads this section when launched with --config config.yaml
+# =============================================================================
+ros_bridge:
+  server_address: "tcp://192.168.1.101:5555"   # 电脑2 (推理机) IP
+  hz: 15
+  jpeg_quality: 50   # lower = smaller payload = faster network, 50 is visually fine for policy
+  max_steps: 800
+  num_episodes: 10
+
+
+
+
