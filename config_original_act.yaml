@@ -15,7 +15,8 @@ server:
   act_dim_feedforward: 3200
   act_kl_weight: 10
   n_action_steps: 1
-  act_temporal_agg: true
+  # act_temporal_agg: true
+  act_temporal_agg: false
   act_ensemble_decay: 0.01
 
   # Names used when the ACT model was trained
@@ -77,7 +78,7 @@ robot:
 # =============================================================================
 control:
   hz: 30
-  max_steps: 600
+  max_steps: 150
   num_episodes: 10
 
 # =============================================================================
@@ -87,14 +88,14 @@ ros_bridge:
   server_address: "tcp://192.168.1.102:5555"
   hz: 30
   jpeg_quality: 50
-  max_steps: 600
+  max_steps: 300
   num_episodes: 10
 
 ros_bridge_original_act:
   server_address: "tcp://192.168.1.102:5555"
   hz: 30
   jpeg_quality: 95
-  max_steps: 600
+  max_steps: 150
   num_episodes: 10
   pose_frame_id: "iiwa_link_0"
   gripper_feedback_mode: "width"
