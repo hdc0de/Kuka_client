@@ -1,0 +1,102 @@
+# =============================================================================
+# Original ACT policy server
+# =============================================================================
+server:
+  address: "tcp://0.0.0.0:5555"
+  connect_address: "tcp://localhost:5555"
+  policy: "act_original"
+  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt2"
+  device: "cuda"
+
+  # --- Original ACT specific ---
+  act_root: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT"
+  act_chunk_size: 90
+  act_hidden_dim: 512
+  act_dim_feedforward: 3200
+  act_kl_weight: 10
+  n_action_steps: 1
+  act_temporal_agg: true
+  act_ensemble_decay: 0.01
+
+  # Names used when the ACT model was trained
+  act_camera_names: ["cam_front", "cam_wrist"]
+  # Image keys produced by this repo's bridge/client
+  act_camera_sources: ["front", "wrist"]
+  act_image_height: 480
+  act_image_width: 640
+
+  # Current server messages only expose `joint_positions` + `gripper_state`.
+  # If your ACT model was trained on Cartesian pose, the bridge still needs to
+  # pack Cartesian pose into this field.
+  act_state_key: "joint_positions"
+  act_action_pose_mode: "relative"
+  act_input_gripper_mode: "binary"
+  act_output_gripper_mode: "binary"
+  act_gripper_width_min: 0.0
+  act_gripper_width_max: 0.085
+  act_debug_actions: true
+  act_debug_interval: 50
+
+# =============================================================================
+# Cameras
+# =============================================================================
+cameras:
+  - name: "front"
+    topic: "/cam_1/color/image_raw"
+    serial: "308222301757"
+    width: 640
+    height: 480
+    fps: 30
+    mode: "rgb"
+    encoding: "bgr8"
+  - name: "wrist"
+    topic: "/cam_2/color/image_raw"
+    serial: "306322300452"
+    width: 640
+    height: 480
+    fps: 30
+    mode: "rgb"
+    encoding: "bgr8"
+
+# =============================================================================
+# Robot
+# =============================================================================
+robot:
+  type: "kuka_iiwa"
+  home_position: [0, 0, 0, -1.57, 0, 1.57, 0]
+  home_cartesian_pose: [0.61, 0.0, 0.37, 0.0, 0.9998, 0.0, -0.0175]
+  workspace_xyz:
+    - [0.45, 0.75]
+    - [-0.22, 0.42]
+    - [0.197, 1.0]
+  bridge_host: "192.168.1.100"
+  bridge_port: 6000
+
+# =============================================================================
+# Control loop parameters
+# =============================================================================
+control:
+  hz: 30
+  max_steps: 600
+  num_episodes: 10
+
+# =============================================================================
+# ROS Bridge settings
+# =============================================================================
+ros_bridge:
+  server_address: "tcp://192.168.1.102:5555"
+  hz: 30
+  jpeg_quality: 50
+  max_steps: 600
+  num_episodes: 10
+
+ros_bridge_original_act:
+  server_address: "tcp://192.168.1.102:5555"
+  hz: 30
+  jpeg_quality: 95
+  max_steps: 600
+  num_episodes: 10
+  pose_frame_id: "iiwa_link_0"
+  gripper_feedback_mode: "width"
+  gripper_command_mode: "width"
+  camera_source: "ros_topics"
