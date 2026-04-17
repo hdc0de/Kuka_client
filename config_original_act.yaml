@@ -5,7 +5,7 @@ server:
   address: "tcp://0.0.0.0:5555"
   connect_address: "tcp://localhost:5555"
   policy: "act_original"
-  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt2"
+  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt3an"
   device: "cuda"
 
   # --- Original ACT specific ---
@@ -15,8 +15,8 @@ server:
   act_dim_feedforward: 3200
   act_kl_weight: 10
   n_action_steps: 1
-  # act_temporal_agg: true
-  act_temporal_agg: false
+  act_temporal_agg: true
+  #act_temporal_agg: false
   act_ensemble_decay: 0.01
 
   # Names used when the ACT model was trained
@@ -30,7 +30,7 @@ server:
   # If your ACT model was trained on Cartesian pose, the bridge still needs to
   # pack Cartesian pose into this field.
   act_state_key: "joint_positions"
-  act_action_pose_mode: "relative"
+  act_action_pose_mode: "absolute"
   act_input_gripper_mode: "binary"
   act_output_gripper_mode: "binary"
   act_gripper_width_min: 0.0
@@ -48,7 +48,7 @@ cameras:
     width: 640
     height: 480
     fps: 30
-    mode: "rgb"
+    #mode: "rgb"
     encoding: "bgr8"
   - name: "wrist"
     topic: "/cam_2/color/image_raw"
@@ -56,7 +56,7 @@ cameras:
     width: 640
     height: 480
     fps: 30
-    mode: "rgb"
+    #mode: "rgb"
     encoding: "bgr8"
 
 # =============================================================================
@@ -85,14 +85,14 @@ control:
 # ROS Bridge settings
 # =============================================================================
 ros_bridge:
-  server_address: "tcp://192.168.1.102:5555"
+  server_address: "tcp://192.168.1.103:5555"
   hz: 30
   jpeg_quality: 50
   max_steps: 300
   num_episodes: 10
 
 ros_bridge_original_act:
-  server_address: "tcp://192.168.1.102:5555"
+  server_address: "tcp://192.168.1.103:5555"
   hz: 30
   jpeg_quality: 95
   max_steps: 150
