@@ -191,11 +191,7 @@ class OriginalACTPolicy(BasePolicy):
         return float(np.clip(alpha * 2.0 - 1.0, -1.0, 1.0))
 
     def _width_to_binary_closed(self, value: float) -> float:
-        span = self.gripper_width_max - self.gripper_width_min
-        if span <= 1e-6:
-            return 1.0
-        alpha_open = (float(value) - self.gripper_width_min) / span
-        return float(np.clip(1.0 - alpha_open, 0.0, 1.0))
+        return 1.0 if value < self.gripper_width_max - 1e-4 else 0.0
 
     def _binary_closed_to_width(self, value: float) -> float:
         closed = float(np.clip(value, 0.0, 1.0))
