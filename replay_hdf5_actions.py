@@ -48,6 +48,18 @@ def parse_args() -> argparse.Namespace:
         default=script_dir / "config_original_act.yaml",
         help="Optional YAML config for home pose / workspace / gripper modes",
     )
+    parser.add_argument(
+        "--timing-mode",
+        choices=("auto", "fixed", "timestamps"),
+        default="auto",
+        help="Replay at fixed --hz, or use timestamps stored in the HDF5 file",
+    )
+    parser.add_argument(
+        "--timestamp-dataset",
+        type=str,
+        default=None,
+        help="Optional HDF5 dataset path for action timestamps",
+    )
     parser.add_argument("--hz", type=float, default=15.0, help="Replay rate")
     parser.add_argument("--start-step", type=int, default=0, help="First action index")
     parser.add_argument(
@@ -138,13 +150,33 @@ def get_replay_settings(cfg: dict) -> tuple[np.ndarray, np.ndarray, str, str]:
     return home_pose, workspace, pose_frame_id, gripper_command_mode
 
 
+def _find_timestamp_dataset(root: h5py.File, explicit_path: str | None) -> str | None:
+    candidates = []
+    if explicit_path:
+        candidates.append(explicit_path)
+    candidates.extend(
+        [
+            "/action_timestamps",
+            "/timestamps/action",
+            "/timestamps",
+            "/observations/timestamps",
+        ]
+    )
+    for path in candidates:
+        if path in root:
+            return path
+    return None
+
+
 def load_actions(
     episode_path: Path,
     start_step: int,
     end_step: int | None,
     stride: int,
     max_steps: int | None,
-) -> np.ndarray:
+    timing_mode: str,
+    timestamp_dataset: str | None,
+) -> tuple[np.ndarray, np.ndarray | None, str]:
     if stride <= 0:
         raise ValueError("--stride must be >= 1")
 
@@ -155,12 +187,45 @@ def load_actions(
         start = max(0, int(start_step))
         stop = action_ds.shape[0] if end_step is None else min(int(end_step), action_ds.shape[0])
         actions = action_ds[start:stop:stride]
+        ts_path = _find_timestamp_dataset(root, timestamp_dataset)
+        timestamps = None
+        timing_source = "fixed_hz"
+        if ts_path is not None:
+            timestamps = np.asarray(root[ts_path][start:stop:stride], dtype=np.float64).reshape(-1)
+            timing_source = ts_path
 
     if max_steps is not None:
         actions = actions[: max(0, int(max_steps))]
+        if timestamps is not None:
+            timestamps = timestamps[: max(0, int(max_steps))]
     if len(actions) == 0:
         raise ValueError("No actions selected. Check --start-step/--end-step/--stride.")
-    return np.asarray(actions, dtype=np.float32)
+    if timestamps is not None and len(timestamps) != len(actions):
+        raise ValueError(
+            f"Timestamp length mismatch: {len(timestamps)} timestamps for {len(actions)} actions"
+        )
+    if timing_mode == "timestamps" and timestamps is None:
+        raise ValueError(
+            "Requested --timing-mode timestamps, but no timestamp dataset was found in the HDF5 file."
+        )
+    if timestamps is None:
+        timing_source = "fixed_hz"
+    return np.asarray(actions, dtype=np.float32), timestamps, timing_source
+
+
+def compute_sleep_time(
+    idx: int,
+    timestamps: np.ndarray | None,
+    fixed_dt: float,
+) -> float:
+    if timestamps is None:
+        return fixed_dt
+    if idx >= len(timestamps) - 1:
+        return 0.0
+    delta = float(timestamps[idx + 1] - timestamps[idx])
+    if delta < 0:
+        raise ValueError("Timestamps are not monotonic increasing.")
+    return delta
 
 
 def binary_closed_to_width(value: float, threshold: float) -> float:
@@ -259,7 +324,10 @@ def main():
         end_step=args.end_step,
         stride=args.stride,
         max_steps=args.max_steps,
+        timing_mode=args.timing_mode,
+        timestamp_dataset=args.timestamp_dataset,
     )
+    actions, timestamps, timing_source = actions
 
     robot, rospy = build_robot(
         dummy=args.dummy,
@@ -271,7 +339,12 @@ def main():
 
     dt = 1.0 / args.hz
     print(f"[Replay] episode={args.episode_path}")
-    print(f"[Replay] selected_actions={actions.shape} hz={args.hz:.2f}")
+    if timestamps is None:
+        timing_desc = f"fixed {args.hz:.2f} Hz"
+    else:
+        avg_dt = float(np.mean(np.diff(timestamps))) if len(timestamps) > 1 else 0.0
+        timing_desc = f"timestamps from {timing_source} (avg_dt={avg_dt:.4f}s)"
+    print(f"[Replay] selected_actions={actions.shape} timing={timing_desc}")
     print(
         f"[Replay] input_gripper_mode={args.input_gripper_mode} "
         f"robot_gripper_mode={gripper_command_mode}"
@@ -313,7 +386,8 @@ def main():
                 )
 
             elapsed = time.time() - t0
-            sleep_time = dt - elapsed
+            target_dt = compute_sleep_time(idx, timestamps, dt)
+            sleep_time = target_dt - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
