@@ -19,12 +19,13 @@ import numpy as np
 import yaml
 import zmq
 
-from msg_utils import pack_observation, unpack_chunk
 from ros_bridge_original_act import (
     DEFAULT_WORKSPACE,
     HOME_POSE,
     POSE_FRAME_ID,
     DummyCartesianRobot,
+    pack_observation,
+    unpack_chunk,
     ROSCartesianRobot,
 )
 
