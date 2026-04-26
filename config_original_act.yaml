@@ -15,8 +15,8 @@ server:
   act_dim_feedforward: 3200
   act_kl_weight: 10
   n_action_steps: 1
-  act_temporal_agg: true
-  #act_temporal_agg: false
+  #act_temporal_agg: true
+  act_temporal_agg: false
   act_ensemble_decay: 0.01
 
   # Names used when the ACT model was trained
@@ -31,7 +31,9 @@ server:
   # pack Cartesian pose into this field.
   act_state_key: "joint_positions"
   act_action_pose_mode: "absolute"
-  act_input_gripper_mode: "binary"
+  #act_action_pose_mode: "relative"
+  #act_input_gripper_mode: "binary"
+  act_input_gripper_mode: "width"
   act_output_gripper_mode: "binary"
   act_gripper_width_min: 0.0
   act_gripper_width_max: 0.085
@@ -48,7 +50,7 @@ cameras:
     width: 640
     height: 480
     fps: 30
-    #mode: "rgb"
+    mode: "rgb"
     encoding: "bgr8"
   - name: "wrist"
     topic: "/cam_2/color/image_raw"
@@ -56,7 +58,7 @@ cameras:
     width: 640
     height: 480
     fps: 30
-    #mode: "rgb"
+    mode: "rgb"
     encoding: "bgr8"
 
 # =============================================================================
@@ -69,7 +71,7 @@ robot:
   workspace_xyz:
     - [0.45, 0.75]
     - [-0.22, 0.42]
-    - [0.197, 1.0]
+    - [0.190, 1.0]
   bridge_host: "192.168.1.100"
   bridge_port: 6000
 
@@ -78,7 +80,7 @@ robot:
 # =============================================================================
 control:
   hz: 30
-  max_steps: 150
+  max_steps: 800
   num_episodes: 10
 
 # =============================================================================
@@ -92,10 +94,10 @@ ros_bridge:
   num_episodes: 10
 
 ros_bridge_original_act:
-  server_address: "tcp://192.168.1.103:5555"
+  server_address: "tcp://192.168.1.104:5555"
   hz: 30
   jpeg_quality: 95
-  max_steps: 150
+  max_steps: 800
   num_episodes: 10
   pose_frame_id: "iiwa_link_0"
   gripper_feedback_mode: "width"

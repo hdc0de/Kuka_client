@@ -336,7 +336,7 @@ def build_gripper_cmd(gripper_width: float):
     msg.rGTO = 1
     msg.rSP = 255
     msg.rFR = 50
-    msg.rPR = 255 if width < 0.085 else 0
+    msg.rPR = 255 if width < 0.045 else 0
     return msg
 
 
