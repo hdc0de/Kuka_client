@@ -336,7 +336,7 @@ def build_gripper_cmd(gripper_width: float):
     msg.rGTO = 1
     msg.rSP = 255
     msg.rFR = 50
-    msg.rPR = 255 if width < 0.045 else 0
+    msg.rPR = 255 if width < 0.084 else 0
     return msg
 
 
@@ -531,8 +531,11 @@ class ROSCartesianRobot:
 
     def open_gripper(self):
         pose = self.get_cartesian_pose()
-        self.execute_action(np.append(pose, GRIPPER_WIDTH_MAX))
-        self._rospy.loginfo("[ROSCartesianRobot] Open gripper at current pose")
+        open_action = np.append(pose, GRIPPER_WIDTH_MAX)
+        for _ in range(5):
+            self.execute_action(open_action)
+            time.sleep(0.05)
+        self._rospy.loginfo("[ROSCartesianRobot] Open gripper at current pose x5")
 
 
 class DummyCartesianRobot:
