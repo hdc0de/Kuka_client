@@ -1,19 +1,22 @@
 # =============================================================================
-# Original ACT policy server
+# Original ACT policy trained from the 10 Hz qpos binary dataset
 # =============================================================================
 server:
   address: "tcp://0.0.0.0:5555"
   connect_address: "tcp://localhost:5555"
-  policy: "act_original"
-  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt3an"
+  policy: "act_original_qpos_10hz_binary"
+  # Point this at the checkpoint trained from hdf5_qpos_10hz_binary.
+  # Do not silently reuse a checkpoint trained from a different sampling/data contract.
+  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt6_9"
   device: "cuda"
 
-  # --- Original ACT specific ---
+  # --- Original ACT, 10 Hz qpos binary specific ---
   act_root: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT"
-  act_chunk_size: 90
+  # Must exactly match --chunk_size used while training the checkpoint.
+  act_chunk_size: 20
   act_hidden_dim: 512
   act_dim_feedforward: 3200
-  act_kl_weight: 10
+  act_kl_weight: 10  #10
   n_action_steps: 1
   act_temporal_agg: true
   #act_temporal_agg: false
@@ -30,13 +33,19 @@ server:
   # If your ACT model was trained on Cartesian pose, the bridge still needs to
   # pack Cartesian pose into this field.
   act_state_key: "joint_positions"
+  # /action_qpos stores the absolute command pose.
   act_action_pose_mode: "absolute"
-  #act_action_pose_mode: "relative"
+
+  # bag2hdf5_qpos_10hz_binary_strict.py converts both observation and action
+  # gripper values to 1=closed, 0=open.
   act_input_gripper_mode: "binary"
-  #act_input_gripper_mode: "width"
   act_output_gripper_mode: "binary"
   act_gripper_width_min: 0.0
   act_gripper_width_max: 0.085
+  # Must match GRIPPER_CLOSED_WIDTH_THRESHOLD in the HDF5 conversion script.
+  act_gripper_closed_width_threshold: 0.068
+  # Convert denormalized model output to a hard binary command.
+  act_binary_action_threshold: 0.5
   act_debug_actions: true
   act_debug_interval: 50
 
@@ -45,6 +54,8 @@ server:
 # =============================================================================
 cameras:
   - name: "front"
+    # Runtime subscribes to the raw camera and samples it in the 10 Hz bridge
+    # loop. The *_10hz names only exist while the recorder republisher runs.
     topic: "/cam_1/color/image_raw"
     serial: "308222301757"
     width: 640
@@ -53,6 +64,7 @@ cameras:
     mode: "rgb"
     encoding: "bgr8"
   - name: "wrist"
+    # Keep bgr8: bag2hdf5_qpos_10hz_binary_strict.py stores bgr8 arrays.
     topic: "/cam_2/color/image_raw"
     serial: "306322300452"
     width: 640
@@ -79,8 +91,8 @@ robot:
 # Control loop parameters
 # =============================================================================
 control:
-  hz: 30
-  max_steps: 1000
+  hz: 10
+  max_steps: 300
   num_episodes: 10
 
 # =============================================================================
@@ -88,16 +100,18 @@ control:
 # =============================================================================
 ros_bridge:
   server_address: "tcp://192.168.1.103:5555"
-  hz: 30
+  hz: 10
   jpeg_quality: 50
   max_steps: 300
   num_episodes: 10
 
-ros_bridge_original_act:
-  server_address: "tcp://192.168.1.101:5555"
-  hz: 30
+ros_bridge_original_act_qpos_10hz_binary:
+  server_address: "tcp://192.168.1.105:5555"
+  # Match teleop_position_iiwa_test_qpos_topics_10hz.py and the recorded data.
+  hz: 10
   jpeg_quality: 95
-  max_steps: 1000
+  # 1000 steps at 10 Hz is 100 seconds. Adjust for the desired rollout duration.
+  max_steps: 300
   num_episodes: 10
   pose_frame_id: "iiwa_link_0"
   gripper_feedback_mode: "width"

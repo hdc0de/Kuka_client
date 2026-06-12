@@ -113,7 +113,8 @@ class OriginalACTPolicy(BasePolicy):
             raise FileNotFoundError(f"Checkpoint directory not found: {ckpt_dir}")
 
         #ckpt_file = ckpt_dir / "policy_best.ckpt"
-        ckpt_file = ckpt_dir / "policy_last.ckpt"
+        #ckpt_file = ckpt_dir / "policy_last.ckpt"
+        ckpt_file = ckpt_dir / "policy_epoch_5000_seed_0.ckpt"
         stats_file = ckpt_dir / "dataset_stats.pkl"
         if not ckpt_file.exists():
             raise FileNotFoundError(f"ACT checkpoint not found: {ckpt_file}")

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""ROS bridge for the original ACT Cartesian-pose policy.
+"""ROS bridge for the original-ACT 10 Hz qpos binary policy.
 
 This is a self-contained bridge that runs on the ROS machine. It keeps the
 same ZMQ protocol as the existing bridge, but packs Cartesian pose into the
 `joint_positions` field for compatibility with the current server/msg format.
+
+The bridge sends physical gripper width to the server. The matching policy
+adapter converts it with the same threshold used by
+bag2hdf5_qpos_10hz_binary_strict.py.
 
 Observation sent to server:
   - images: camera frames
@@ -606,7 +610,10 @@ DEFAULT_CAMERAS = [
 
 
 def _get_bridge_config(cfg: dict) -> dict:
-    return cfg.get("ros_bridge_original_act", cfg.get("ros_bridge", {}))
+    return cfg.get(
+        "ros_bridge_original_act_qpos_10hz_binary",
+        cfg.get("ros_bridge_original_act", cfg.get("ros_bridge", {})),
+    )
 
 
 def _ros_is_shutdown() -> bool:
@@ -626,11 +633,11 @@ def _recv_reply(sock, label: str):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ROS bridge for original ACT Cartesian-pose inference"
+        description="ROS bridge for original ACT 10 Hz qpos binary inference"
     )
     parser.add_argument("--server", type=str, default="tcp://localhost:5555")
     parser.add_argument("--dummy", action="store_true")
-    parser.add_argument("--hz", type=int, default=15)
+    parser.add_argument("--hz", type=int, default=10)
     parser.add_argument("--max-steps", type=int, default=300)
     parser.add_argument("--num-episodes", type=int, default=10)
     parser.add_argument("--config", type=str, default=None)
@@ -687,7 +694,9 @@ def main():
     else:
         import rospy
 
-        rospy.init_node("ros_bridge_original_act", anonymous=True)
+        rospy.init_node(
+            "ros_bridge_original_act_qpos_10hz_binary", anonymous=True
+        )
         if camera_source == "ros_topics":
             cameras = ROSTopicCameraManager(camera_configs)
         elif camera_source == "realsense":
@@ -712,6 +721,10 @@ def main():
     sock.setsockopt(zmq.RCVTIMEO, 1000)
     sock.connect(args.server)
     print(f"[Bridge] Connected to policy server: {args.server}")
+    print(
+        "[Bridge] Data contract: 10 Hz observation, absolute Cartesian target, "
+        "gripper feedback/command transported as width"
+    )
 
     try:
         for ep in range(args.num_episodes):
