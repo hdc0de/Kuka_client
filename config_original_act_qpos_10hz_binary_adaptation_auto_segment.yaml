@@ -1,0 +1,177 @@
+# =============================================================================
+# Original ACT policy trained from the 10 Hz qpos binary dataset
+# =============================================================================
+server:
+  address: "tcp://0.0.0.0:5555"
+  connect_address: "tcp://localhost:5555"
+  policy: "act_original_qpos_10hz_binary"
+  # Point this at the checkpoint trained from hdf5_qpos_10hz_binary.
+  # Do not silently reuse a checkpoint trained from a different sampling/data contract.
+  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt6_22"
+  device: "cuda"
+
+  # --- Original ACT, 10 Hz qpos binary specific ---
+  act_root: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT"
+  # Must exactly match --chunk_size used while training the checkpoint.
+  act_chunk_size: 20
+  act_hidden_dim: 512
+  act_dim_feedforward: 3200
+  act_kl_weight: 10  #10
+  n_action_steps: 1
+  act_temporal_agg: true
+  #act_temporal_agg: false
+  act_ensemble_decay: 0.01
+
+  # Names used when the ACT model was trained
+  act_camera_names: ["cam_front", "cam_wrist"]
+  # Image keys produced by this repo's bridge/client
+  act_camera_sources: ["front", "wrist"]
+  act_image_height: 480
+  act_image_width: 640
+
+  # Current server messages only expose `joint_positions` + `gripper_state`.
+  # If your ACT model was trained on Cartesian pose, the bridge still needs to
+  # pack Cartesian pose into this field.
+  act_state_key: "joint_positions"
+  # /action_qpos stores the absolute command pose.
+  act_action_pose_mode: "absolute"
+
+  # bag2hdf5_qpos_10hz_binary_strict.py converts both observation and action
+  # gripper values to 1=closed, 0=open.
+  act_input_gripper_mode: "binary"
+  act_output_gripper_mode: "binary"
+  act_gripper_width_min: 0.0
+  act_gripper_width_max: 0.085
+  # Must match GRIPPER_CLOSED_WIDTH_THRESHOLD in the HDF5 conversion script.
+  act_gripper_closed_width_threshold: 0.068
+  # Convert denormalized model output to a hard binary command.
+  act_binary_action_threshold: 0.5
+  act_debug_actions: true
+  act_debug_interval: 50
+
+# =============================================================================
+# Cameras
+# =============================================================================
+cameras:
+  - name: "front"
+    # Runtime subscribes to the raw camera and samples it in the 10 Hz bridge
+    # loop. The *_10hz names only exist while the recorder republisher runs.
+    topic: "/cam_1/color/image_raw"
+    serial: "308222301757"
+    width: 640
+    height: 480
+    fps: 30
+    mode: "rgb"
+    encoding: "bgr8"
+  - name: "wrist"
+    # Keep bgr8: bag2hdf5_qpos_10hz_binary_strict.py stores bgr8 arrays.
+    topic: "/cam_2/color/image_raw"
+    serial: "306322300452"
+    width: 640
+    height: 480
+    fps: 30
+    mode: "rgb"
+    encoding: "bgr8"
+
+# =============================================================================
+# Robot
+# =============================================================================
+robot:
+  type: "kuka_iiwa"
+  home_position: [0, 0, 0, -1.57, 0, 1.57, 0]
+  home_cartesian_pose: [0.61, 0.0, 0.37, 0.0, 0.9998, 0.0, -0.0175]
+  workspace_xyz:
+    - [0.42, 0.78]
+    - [-0.38, 0.42]
+    - [0.190, 1.0]
+  bridge_host: "192.168.1.100"
+  bridge_port: 6000
+
+# =============================================================================
+# Control loop parameters
+# =============================================================================
+control:
+  hz: 10
+  max_steps: 300
+  num_episodes: 10
+
+# =============================================================================
+# ROS Bridge settings
+# =============================================================================
+ros_bridge:
+  server_address: "tcp://192.168.1.103:5555"
+  hz: 10
+  jpeg_quality: 50
+  max_steps: 300
+  num_episodes: 10
+
+ros_bridge_original_act_qpos_10hz_binary:
+  server_address: "tcp://192.168.1.105:5555"
+  # Match teleop_position_iiwa_test_qpos_topics_10hz.py and the recorded data.
+  hz: 10
+  jpeg_quality: 95
+  # 1000 steps at 10 Hz is 100 seconds. Adjust for the desired rollout duration.
+  max_steps: 250
+  num_episodes: 10
+  pose_frame_id: "iiwa_link_0"
+  gripper_feedback_mode: "width"
+  gripper_command_mode: "width"
+  camera_source: "ros_topics"
+
+# =============================================================================
+# Adaptation bridge settings
+# =============================================================================
+adaptation:
+  # Keep false until the poses/path below are filled with your real experiment values.
+  enabled: false
+
+  # Current object pose source. Start with a fixed out-of-distribution object pose;
+  # later set use_pose_topic=true to consume /pose_cube.
+  use_pose_topic: false
+  object_pose_topic: "/pose_cube"
+  object_pose_fixed: [0.60, 0.20, 0.20]
+
+  # Policy approach -> hover transition and hover servo.
+  approach_xy_threshold: 0.12
+  hover_z_offset: 0.10
+  hover_xy_tolerance: 0.015
+  hover_z_tolerance: 0.015
+  hover_kp: 0.7
+  hover_max_step: 0.025
+
+  # Expert observation replay used for the adapted descend-and-grasp phase.
+  # HDF5 layout should match bag2hdf5_qpos_10hz_binary_strict.py:
+  # observations/qpos, observations/images/cam_front, observations/images/cam_wrist, action.
+  expert_hdf5_path: "/media/user/PS2000/ACTData/daizi/hdf5_qpos_10hz_binary/episode_66.hdf5"
+
+  # Auto segment mode:
+  #   when HOVER_ALIGN reaches object_pose + hover_z_offset, the bridge
+  #   searches this expert HDF5 for the main z descent and gripper close point.
+  #   It then chooses start_idx by matching the current live robot z.
+  expert_auto_segment: true
+  expert_auto_z_source: "qpos"
+  expert_auto_close_source: "action"
+  expert_auto_window: 15
+  expert_auto_min_drop: 0.04
+  expert_auto_min_negative_steps: 5
+  expert_auto_post_close_frames: 10
+
+  # Fallback/manual range used only when expert_auto_segment=false.
+  expert_start_idx: 64
+  expert_end_idx: 100
+  expert_use_images: true
+  expert_use_qpos: true
+  expert_follow_xy_object: true
+  expert_z_relative: true
+  expert_close_width_threshold: 0.065
+
+  # After grasp, move back into the data distribution with a manual servo, then
+  # reset ACT temporal aggregation and let policy finish place.
+  fixed_place_entry_pose: [0.61, 0.00, 0.37, 0.0, 0.9998, 0.0, -0.0175]
+  place_entry_tolerance: 0.015
+  carry_kp: 0.5
+  carry_max_step: 0.025
+  policy_reset_after_manual: true
+
+  open_width: 0.085
+  closed_width: 0.0
