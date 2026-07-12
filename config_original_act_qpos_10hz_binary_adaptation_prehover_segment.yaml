@@ -111,7 +111,7 @@ ros_bridge_original_act_qpos_10hz_binary:
   hz: 10
   jpeg_quality: 95
   # 1000 steps at 10 Hz is 100 seconds. Adjust for the desired rollout duration.
-  max_steps: 350
+  max_steps: 250
   num_episodes: 10
   pose_frame_id: "iiwa_link_0"
   gripper_feedback_mode: "width"
@@ -123,17 +123,17 @@ ros_bridge_original_act_qpos_10hz_binary:
 # =============================================================================
 adaptation:
   # Keep false until the poses/path below are filled with your real experiment values.
-  enabled: true
+  enabled: false
 
   # Current object pose source. Start with a fixed out-of-distribution object pose;
   # later set use_pose_topic=true to consume /pose_cube.
   use_pose_topic: false
   object_pose_topic: "/pose_cube"
-  object_pose_fixed: [0.450, 0.260, 0.420]  #[0.567, 0.265, 0.420]
+  object_pose_fixed: [0.60, 0.20, 0.20]
 
   # Policy approach -> hover transition and hover servo.
-  approach_xy_threshold: 0.18
-  hover_z_offset: 0.070
+  approach_xy_threshold: 0.12
+  hover_z_offset: 0.10
   hover_xy_tolerance: 0.015
   hover_z_tolerance: 0.015
   hover_kp: 0.7
@@ -142,7 +142,22 @@ adaptation:
   # Expert observation replay used for the adapted descend-and-grasp phase.
   # HDF5 layout should match bag2hdf5_qpos_10hz_binary_strict.py:
   # observations/qpos, observations/images/cam_front, observations/images/cam_wrist, action.
-  expert_hdf5_path: "/home/jump-server/episode_66.hdf5"
+  expert_hdf5_path: "/media/user/PS2000/ACTData/daizi/hdf5_qpos_10hz_binary/episode_66.hdf5"
+
+  # Pre-hover auto segment mode:
+  #   before HOVER_ALIGN, when POLICY_APPROACH first reaches the object XY
+  #   threshold, the bridge searches this expert HDF5 for the main z descent
+  #   and gripper close point.
+  #   start_idx is chosen by close_z + hover_z_offset, not by live current_z.
+  expert_auto_segment: true
+  expert_auto_z_source: "qpos"
+  expert_auto_close_source: "action"
+  expert_auto_window: 15
+  expert_auto_min_drop: 0.04
+  expert_auto_min_negative_steps: 5
+  expert_auto_post_close_frames: 10
+
+  # Fallback/manual range used only when expert_auto_segment=false.
   expert_start_idx: 64
   expert_end_idx: 100
   expert_use_images: true
@@ -153,7 +168,7 @@ adaptation:
 
   # After grasp, move back into the data distribution with a manual servo, then
   # reset ACT temporal aggregation and let policy finish place.
-  fixed_place_entry_pose: [0.670, 0.250, 0.525, 0.0, 0.9998, 0.0, -0.0175]
+  fixed_place_entry_pose: [0.61, 0.00, 0.37, 0.0, 0.9998, 0.0, -0.0175]
   place_entry_tolerance: 0.015
   carry_kp: 0.5
   carry_max_step: 0.025

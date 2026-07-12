@@ -795,16 +795,18 @@ def find_main_descent_start(
     return int(best_start + np.argmax(z[best_start:search_hi]))
 
 
-def choose_start_by_current_z(
+def choose_start_by_close_hover_offset(
     z: np.ndarray,
     descent_start: int,
     close_idx: int,
-    current_z: float,
-) -> int:
+    hover_z_offset: float,
+) -> tuple[int, float, float]:
     lo = max(0, int(descent_start))
     hi = min(len(z), int(close_idx) + 1)
-    local = np.abs(z[lo:hi] - float(current_z))
-    return int(lo + np.argmin(local))
+    close_z = float(z[int(close_idx)])
+    target_start_z = close_z + float(hover_z_offset)
+    local = np.abs(z[lo:hi] - target_start_z)
+    return int(lo + np.argmin(local)), close_z, target_start_z
 
 
 def get_expert_array_by_source(qpos, actions, source: str) -> np.ndarray:
@@ -851,7 +853,7 @@ class ExpertReplay:
         self.index = self.start_idx
         self.start_qpos = np.asarray(self.qpos[self.start_idx], dtype=np.float32)
 
-    def configure_auto_segment(self, cfg: AdaptationConfig, current_z: float):
+    def configure_prehover_segment(self, cfg: AdaptationConfig):
         z_arr = get_expert_array_by_source(self.qpos, self.actions, cfg.expert_auto_z_source)
         close_arr = get_expert_array_by_source(
             self.qpos,
@@ -867,21 +869,22 @@ class ExpertReplay:
             min_drop=cfg.expert_auto_min_drop,
             min_negative_steps=cfg.expert_auto_min_negative_steps,
         )
-        start_idx = choose_start_by_current_z(
+        start_idx, close_z, target_start_z = choose_start_by_close_hover_offset(
             z_arr[:, 2],
             descent_start=descent_start,
             close_idx=close_idx,
-            current_z=current_z,
+            hover_z_offset=cfg.hover_z_offset,
         )
         end_idx = min(self.n_frames, close_idx + cfg.expert_auto_post_close_frames)
         self.set_range(start_idx, end_idx)
 
         print(
-            "[ExpertReplay] Auto segment "
+            "[ExpertReplay] Pre-hover auto segment "
             f"z_source={cfg.expert_auto_z_source}, "
             f"close_source={cfg.expert_auto_close_source}, "
             f"descent_start={descent_start}, close_idx={close_idx}, "
-            f"current_z={current_z:.4f}, range=[{self.start_idx}, {self.end_idx}), "
+            f"close_z={close_z:.4f}, hover_z_offset={cfg.hover_z_offset:.4f}, "
+            f"target_start_z={target_start_z:.4f}, range=[{self.start_idx}, {self.end_idx}), "
             f"start_z={float(z_arr[self.start_idx, 2]):.4f}"
         )
 
@@ -962,7 +965,7 @@ def reset_policy(sock, cameras, robot, jpeg_quality, label: str):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ROS bridge for original ACT 10 Hz qpos binary inference with auto expert segment"
+        description="ROS bridge for original ACT 10 Hz qpos binary inference with pre-hover expert segment"
     )
     parser.add_argument("--server", type=str, default="tcp://localhost:5555")
     parser.add_argument("--dummy", action="store_true")
@@ -1029,7 +1032,7 @@ def main():
         import rospy
 
         rospy.init_node(
-            "ros_bridge_original_act_qpos_10hz_binary_adaptation_auto_segment", anonymous=True
+            "ros_bridge_original_act_qpos_10hz_binary_adaptation_prehover_segment", anonymous=True
         )
         if adapt_cfg.enabled:
             object_pose_provider = ObjectPoseProvider(adapt_cfg, dummy=False)
@@ -1071,7 +1074,8 @@ def main():
             "[Adaptation] expert_auto_segment="
             f"{adapt_cfg.expert_auto_segment}, "
             f"z_source={adapt_cfg.expert_auto_z_source}, "
-            f"close_source={adapt_cfg.expert_auto_close_source}"
+            f"close_source={adapt_cfg.expert_auto_close_source}, "
+            f"start_by=close_z+hover_z_offset"
         )
 
     try:
@@ -1097,6 +1101,7 @@ def main():
             expert_replay = None
             expert_live_start_pose = None
             expert_close_count = 0
+            expert_segment_ready = False
 
             if adapt_cfg.enabled:
                 if not adapt_cfg.expert_hdf5_path:
@@ -1139,6 +1144,9 @@ def main():
                         if object_pose is not None:
                             dist_xy = float(np.linalg.norm(pose[:2] - object_pose[:2]))
                             if dist_xy < adapt_cfg.approach_xy_threshold:
+                                if adapt_cfg.expert_auto_segment and not expert_segment_ready:
+                                    expert_replay.configure_prehover_segment(adapt_cfg)
+                                    expert_segment_ready = True
                                 adapt_state = "HOVER_ALIGN"
                                 action_buf = None
                                 buf_idx = 0
@@ -1146,8 +1154,6 @@ def main():
                                     f"  [step {step:4d}] -> HOVER_ALIGN "
                                     f"(dist_xy={dist_xy:.4f})"
                                 )
-                                action = np.append(pose, adapt_cfg.open_width)
-                                robot.execute_action(action)
 
                         if adapt_state == "POLICY_APPROACH":
                             if action_buf is None or buf_idx >= len(action_buf):
@@ -1165,7 +1171,7 @@ def main():
                             buf_idx += 1
                             robot.execute_action(action)
 
-                    elif adapt_state == "HOVER_ALIGN":
+                    if adapt_state == "HOVER_ALIGN":
                         if object_pose is None:
                             print("  [Adaptation] Waiting for object pose before hover alignment...")
                             action = np.append(pose, adapt_cfg.open_width)
@@ -1187,13 +1193,7 @@ def main():
                             if err_xy < adapt_cfg.hover_xy_tolerance and err_z < adapt_cfg.hover_z_tolerance:
                                 adapt_state = "EXPERT_DESCEND_GRASP"
                                 expert_live_start_pose = robot.get_cartesian_pose()
-                                if adapt_cfg.expert_auto_segment:
-                                    expert_replay.configure_auto_segment(
-                                        adapt_cfg,
-                                        current_z=float(expert_live_start_pose[2]),
-                                    )
-                                else:
-                                    expert_replay.reset()
+                                expert_replay.reset()
                                 expert_close_count = 0
                                 action_buf = None
                                 buf_idx = 0

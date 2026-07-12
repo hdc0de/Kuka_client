@@ -1024,6 +1024,8 @@ def main():
                                     f"  [step {step:4d}] -> HOVER_ALIGN "
                                     f"(dist_xy={dist_xy:.4f})"
                                 )
+                                action = np.append(pose, adapt_cfg.open_width)
+                                robot.execute_action(action)
 
                         if adapt_state == "POLICY_APPROACH":
                             if action_buf is None or buf_idx >= len(action_buf):
@@ -1041,7 +1043,7 @@ def main():
                             buf_idx += 1
                             robot.execute_action(action)
 
-                    if adapt_state == "HOVER_ALIGN":
+                    elif adapt_state == "HOVER_ALIGN":
                         if object_pose is None:
                             print("  [Adaptation] Waiting for object pose before hover alignment...")
                             action = np.append(pose, adapt_cfg.open_width)

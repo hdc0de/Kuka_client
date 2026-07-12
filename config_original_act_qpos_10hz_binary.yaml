@@ -7,7 +7,7 @@ server:
   policy: "act_original_qpos_10hz_binary"
   # Point this at the checkpoint trained from hdf5_qpos_10hz_binary.
   # Do not silently reuse a checkpoint trained from a different sampling/data contract.
-  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt6_9"
+  checkpoint: "/home/user/catkin_ws/src/iiwa_python/src/my_ACT/ckpt6_22"
   device: "cuda"
 
   # --- Original ACT, 10 Hz qpos binary specific ---
@@ -111,7 +111,7 @@ ros_bridge_original_act_qpos_10hz_binary:
   hz: 10
   jpeg_quality: 95
   # 1000 steps at 10 Hz is 100 seconds. Adjust for the desired rollout duration.
-  max_steps: 300
+  max_steps: 250
   num_episodes: 10
   pose_frame_id: "iiwa_link_0"
   gripper_feedback_mode: "width"
