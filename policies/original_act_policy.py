@@ -336,7 +336,10 @@ class OriginalACTPolicy(BasePolicy):
         out = self._convert_gripper_output(abs_action.astype(np.float32, copy=False))
 
         self._debug_action_count += 1
-        if self.debug_actions and self._debug_action_count % self.debug_interval == 1:
+        if (
+            self.debug_actions
+            and (self._debug_action_count - 1) % self.debug_interval == 0
+        ):
             print(
                 "[OriginalACTPolicy][debug] "
                 f"qpos_xyz={np.array2string(qpos[:3], precision=4, suppress_small=True)} "
